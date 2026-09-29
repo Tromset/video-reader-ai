@@ -1,0 +1,12 @@
+1
+00:00:01,000 --> 00:00:04,500
+Bonjour &amp; bienvenue dans cette vidéo.
+
+2
+00:00:05,000 --> 00:00:08,250
+Nous allons parler
+de tests automatisés.
+
+3
+00:00:10,500 --> 00:00:11,900
+<i>Merci d'avoir regardé.</i>
