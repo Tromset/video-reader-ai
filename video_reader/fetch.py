@@ -20,6 +20,8 @@ def fetch(
     langs: list[str],
     need_video: bool,
     need_audio: bool = False,
+    cookies: str | None = None,
+    cookies_from_browser: str | None = None,
 ) -> FetchResult:
     workdir = Path(workdir)
     workdir.mkdir(parents=True, exist_ok=True)
@@ -27,7 +29,9 @@ def fetch(
     if local.is_file():
         return _fetch_local(local, workdir, langs, need_audio)
     if "://" in source or source.startswith("www."):
-        return _fetch_url(source, workdir, langs, need_video, need_audio)
+        return _fetch_url(
+            source, workdir, langs, need_video, need_audio, cookies, cookies_from_browser
+        )
     raise VideoReaderError(f"Fichier introuvable (et ce n'est pas une URL) : {source}")
 
 
@@ -141,13 +145,36 @@ def _find_download(workdir: Path, stem: str) -> Path | None:
     return max(files, key=lambda p: p.stat().st_size, default=None)
 
 
+class _SilentLogger:
+    def debug(self, msg: str) -> None:
+        pass
+
+    info = warning = error = debug
+
+
 def _fetch_url(
-    url: str, workdir: Path, langs: list[str], need_video: bool, need_audio: bool
+    url: str,
+    workdir: Path,
+    langs: list[str],
+    need_video: bool,
+    need_audio: bool,
+    cookies: str | None = None,
+    cookies_from_browser: str | None = None,
 ) -> FetchResult:
     import yt_dlp
     from yt_dlp.utils import DownloadError
 
-    base_opts = {"quiet": True, "no_warnings": True, "noprogress": True, "noplaylist": True}
+    base_opts: dict = {
+        "quiet": True,
+        "no_warnings": True,
+        "noprogress": True,
+        "noplaylist": True,
+        "logger": _SilentLogger(),  # errors surface once, as VideoReaderError
+    }
+    if cookies:  # needed when the site asks to sign in (e.g. YouTube bot check)
+        base_opts["cookiefile"] = str(Path(cookies).expanduser())
+    if cookies_from_browser:
+        base_opts["cookiesfrombrowser"] = (cookies_from_browser,)
     try:
         with yt_dlp.YoutubeDL(base_opts) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -183,7 +210,9 @@ def _fetch_url(
         id=str(info.get("id") or _slug(url)),
         title=info.get("title") or str(info.get("id") or url),
         uploader=info.get("uploader") or info.get("channel"),
-        duration=float(info["duration"]) if info.get("duration") else None,
+        duration=float(info["duration"]) if info.get("duration") else (
+            probe_duration(video_path or audio_path) if (video_path or audio_path) else None
+        ),
         url=info.get("webpage_url") or url,
         description=info.get("description"),
         chapters=[
