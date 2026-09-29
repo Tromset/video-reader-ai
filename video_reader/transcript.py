@@ -37,7 +37,7 @@ def _parse_cues(content: str) -> list[tuple[float, float, list[str]]]:
             g = match.groups()
             current = (_seconds(*g[:4]), _seconds(*g[4:]), [])
             cues.append(current)
-        elif not raw.strip():
+        elif not raw:  # YouTube cues may open with a lone " " line: only a truly empty line ends a cue
             current = None
         elif current is not None:
             line = _clean(raw)
@@ -97,8 +97,8 @@ def load_segments(subtitle_path: Path) -> list[Segment]:
         content = path.read_text(encoding="utf-8-sig", errors="replace")
     except OSError as exc:
         raise VideoReaderError(f"Sous-titres illisibles : {path} ({exc})") from exc
-    segments = _dedupe_cues(_parse_cues(content))
-    return sorted(_merge(segments), key=lambda s: s.start)
+    cues = sorted(_parse_cues(content), key=lambda c: c[0])
+    return _merge(_dedupe_cues(cues))
 
 
 def transcribe(audio_path: Path, model: str = "small") -> list[Segment]:
