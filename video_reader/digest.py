@@ -6,6 +6,7 @@ import bisect
 import json
 import math
 import os
+import shlex
 from pathlib import Path
 
 from .models import FetchResult, Frame, Segment
@@ -149,6 +150,8 @@ def render(
     frames: list[Frame],
     out_dir: Path,
     block_seconds: float = 60.0,
+    *,
+    source: str | None = None,
 ) -> Path:
     """Write digest.md, transcript.json and meta.json into out_dir; return the digest path."""
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -156,6 +159,21 @@ def render(
     lines = _header(meta, segments, frames)
     lines += _body(meta, segments, frames, out_dir, block_seconds)
     lines += _NOTES
+    command_source = shlex.quote(str(out_dir.resolve()))
+    lines += [
+        "", "## Naviguer dans la vidéo", "",
+        "Pour examiner un autre moment, relancez l'outil sur ce dossier. Chaque commande "
+        "produit un nouveau rapport `inspection.md` et ses images sans modifier ce digest.",
+        "", "```sh",
+        f"video-reader {command_source} --at 00:05 --context 5",
+        f"video-reader {command_source} --start 00:00 --end 00:10 --interval 1",
+        "```", "",
+        "Adaptez les timestamps à la durée de la vidéo. Formats : secondes, MM:SS ou HH:MM:SS "
+        "avec millisecondes facultatives. Plusieurs instants : `--at 00:01 00:03.500`.",
+        "Si la vidéo distante n'est pas en cache, elle sera téléchargée à nouveau ; "
+        "`--keep-video` la conserve pour les prochaines consultations. "
+        "Un fichier local doit rester à son emplacement d'origine.",
+    ]
     digest_path = out_dir / "digest.md"
     digest_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -170,6 +188,7 @@ def render(
         "uploader": meta.uploader,
         "duration": meta.duration,
         "url": meta.url,
+        "source": source or meta.url,
         "description": meta.description,
         "chapters": meta.chapters,
         "subtitle_path": _rel(meta.subtitle_path, out_dir),
